@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="description" content="Brawl Sniper RL Studio — Train, Play, and Spectate AI Agents">
+    <title>Brawl Sniper RL Studio</title>
+    <link rel="stylesheet" href="/style.css?v=5">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- ═══ GLOBAL TRAINING BAR ═══ -->
+    <div id="training-bar">
+        <div class="training-bar-pulse"></div>
+        <span class="training-bar-text" id="training-bar-name">Training...</span>
+        <span class="training-bar-stats" id="training-bar-stats">0 / 0 steps</span>
+        <button class="training-bar-btn" id="training-bar-watch">Watch Live</button>
+    </div>
+
+    <!-- ═══ MENU SCREEN ═══ -->
+    <div id="menu-screen" class="screen active">
+        <div class="menu-container">
+            <h1 class="game-title">
+                <span class="title-brawl">BRAWL</span>
+                <span class="title-sniper">SNIPER</span>
+            </h1>
+            <p class="subtitle">AI vs Human — Real-Time Combat</p>
+            
+            <div class="mode-select">
+                <button id="btn-rule-bot" class="mode-btn" data-mode="rule_bot">
+                    <span class="mode-icon">🤖</span>
+                    <div>
+                        <span class="mode-label">Normal Bot</span>
+                        <span class="mode-desc">Rule-based opponent</span>
+                    </div>
+                </button>
+                <button id="btn-rl-bot" class="mode-btn rl" data-mode="rl_bot">
+                    <span class="mode-icon">🧠</span>
+                    <div>
+                        <span class="mode-label">RL Agent</span>
+                        <span class="mode-desc">Trained neural network</span>
+                    </div>
+                </button>
+                <button id="btn-studio" class="mode-btn studio">
+                    <span class="mode-icon">⚡</span>
+                    <div>
+                        <span class="mode-label">RL Studio</span>
+                        <span class="mode-desc">Train, manage & spectate bots</span>
+                    </div>
+                </button>
+            </div>
+            
+            <div id="connection-status" class="status">Connecting...</div>
+        </div>
+    </div>
+
+    <!-- ═══ STUDIO HUB SCREEN ═══ -->
+    <div id="studio-screen" class="screen">
+        <div class="studio-container">
+            <div class="studio-header">
+                <h2 class="studio-title">⚡ RL Studio</h2>
+                <div class="studio-actions">
+                    <button id="btn-register-bot" class="btn-icon primary">+ New Bot</button>
+                    <button id="btn-back-menu" class="btn-icon">← Menu</button>
+                </div>
+            </div>
+            <div id="bots-grid" class="bots-grid">
+                <!-- Model cards rendered by model_studio.js -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ REGISTER BOT SCREEN ═══ -->
+    <div id="register-screen" class="screen">
+        <div class="register-container">
+            <h2 class="register-title">🧬 Register New Bot</h2>
+
+            <div class="form-group">
+                <label class="form-label" for="reg-name">Bot Name</label>
+                <input id="reg-name" class="form-input" type="text" placeholder="e.g. sniper_alpha" maxlength="32" autocomplete="off">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="reg-layers">Hidden Layers</label>
+                    <select id="reg-layers" class="form-select">
+                        <option value="64,64">64 × 64</option>
+                        <option value="128,128" selected>128 × 128</option>
+                        <option value="256,256">256 × 256</option>
+                        <option value="128,128,64">128 × 128 × 64</option>
+                        <option value="256,256,128">256 × 256 × 128</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reg-activation">Activation</label>
+                    <select id="reg-activation" class="form-select">
+                        <option value="swish" selected>Swish (SiLU)</option>
+                        <option value="relu">ReLU</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="elu">ELU</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="reg-lr">Learning Rate</label>
+                    <select id="reg-lr" class="form-select">
+                        <option value="0.0001">1e-4 (Conservative)</option>
+                        <option value="0.0003" selected>3e-4 (Standard)</option>
+                        <option value="0.001">1e-3 (Aggressive)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reg-steps">Total Steps</label>
+                    <select id="reg-steps" class="form-select">
+                        <option value="500000">500K (Quick Test)</option>
+                        <option value="1000000">1M (Light)</option>
+                        <option value="3000000">3M (Standard)</option>
+                        <option value="10000000" selected>10M (Full)</option>
+                        <option value="50000000">50M (Superhuman)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="arch-preview" class="arch-preview">
+                obs(30) → [128 ReLU] → [128 ReLU] → action(5)
+            </div>
+
+            <div class="form-actions">
+                <button id="btn-cancel-register" class="btn-form cancel">Cancel</button>
+                <button id="btn-submit-register" class="btn-form submit">Create Bot</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ GAME SCREEN ═══ -->
+    <div id="game-screen" class="screen">
+        <div id="spectator-banner" class="spectator-banner" style="display:none;">📺 SPECTATING LIVE</div>
+        <canvas id="game-canvas"></canvas>
+        
+        <!-- HUD Overlay -->
+        <div id="hud">
+            <div id="hud-player" class="hud-bar">
+                <span id="hud-label-player" class="hud-label">YOU</span>
+                <div class="hp-bar"><div id="hp-fill-player" class="hp-fill player"></div></div>
+                <span id="hp-text-player" class="hp-text">100</span>
+            </div>
+            <div id="hud-timer" class="hud-timer">0:00</div>
+            <div id="hud-enemy" class="hud-bar">
+                <span id="hud-label-enemy" class="hud-label">BOT</span>
+                <div class="hp-bar"><div id="hp-fill-enemy" class="hp-fill enemy"></div></div>
+                <span id="hp-text-enemy" class="hp-text">100</span>
+            </div>
+        </div>
+
+        <!-- Joystick zones (touch targets) -->
+        <div id="joystick-left" class="joystick-zone"></div>
+        <div id="joystick-right" class="joystick-zone"></div>
+    </div>
+
+    <!-- ═══ RESULT SCREEN ═══ -->
+    <div id="result-screen" class="screen">
+        <div class="result-container">
+            <h2 id="result-title" class="result-title">VICTORY</h2>
+            <p id="result-sub" class="result-sub">Enemy eliminated</p>
+            <button id="btn-play-again" class="mode-btn">
+                <span class="mode-label">Play Again</span>
+            </button>
+            <button id="btn-back-studio" class="mode-btn" style="margin-top:0.75rem; justify-content:center;">
+                <span class="mode-label">← Back to Studio</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts (loaded in order) -->
+    <script src="/js/controls.js?v=5"></script>
+    <script src="/js/renderer.js?v=5"></script>
+    <script src="/js/websocket.js?v=5"></script>
+    <script src="/js/model_studio.js?v=5"></script>
+    <script src="/js/training_hud.js?v=5"></script>
+    <script src="/js/app.js?v=5"></script>
+</body>
+</html>

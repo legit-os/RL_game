@@ -1,7 +1,22 @@
 [project]
 name = "brawlstarsagent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Brawl Sniper — Web-Based RL Studio & AI Game Agent"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.100.0",
+    "gymnasium>=0.29.0",
+    "numpy>=1.24.0",
+    "uvicorn[standard]>=0.22.0",
+    "stable-baselines3>=2.0.0",
+    "torch>=2.0.0",
+    "onnx>=1.14.0",
+    "onnxruntime>=1.15.0",
+    "tensorboard>=2.12.0",
+    "onnxscript>=0.7.1",
+]
+
+[tool.uv]
+# Pull CUDA 12.8 wheels for PyTorch (RTX 3050 6GB, compute 8.6)
+extra-index-url = ["https://download.pytorch.org/whl/cu128"]

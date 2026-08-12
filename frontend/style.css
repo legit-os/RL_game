@@ -1,0 +1,837 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Brawl Sniper RL Studio — Mobile-First Dark Theme
+   Touch-optimized for mobile browsers (iOS Safari & Android Chrome)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --bg-dark: #0a0e1a;
+    --bg-card: #141929;
+    --bg-surface: #1a2035;
+    --bg-input: #0f1524;
+    --accent-blue: #4fc3f7;
+    --accent-cyan: #00e5ff;
+    --accent-purple: #b388ff;
+    --accent-red: #ff5252;
+    --accent-green: #69f0ae;
+    --accent-orange: #ffab40;
+    --accent-gold: #ffd740;
+    --text-primary: #eef0f6;
+    --text-secondary: #8892b0;
+    --text-muted: #4a5578;
+    --player-color: #4fc3f7;
+    --enemy-color: #ff5252;
+    --bullet-color: #ffab40;
+    --font: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --radius-sm: 10px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    font-family: var(--font);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    touch-action: none;
+}
+
+/* ─── Screen Management ──────────────────────────────────────────────────── */
+
+.screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    z-index: 1;
+    touch-action: none;
+}
+
+.screen.active {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ─── Menu Screen ────────────────────────────────────────────────────────── */
+
+#menu-screen {
+    background: radial-gradient(ellipse at 50% 30%, #1a2a4a 0%, var(--bg-dark) 70%);
+    z-index: 10;
+}
+
+.menu-container {
+    text-align: center;
+    padding: 2rem;
+    max-width: 400px;
+    width: 100%;
+    animation: fade-in 0.4s ease;
+}
+
+.game-title {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 0.5rem;
+    letter-spacing: 2px;
+}
+
+.title-brawl {
+    display: block;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.title-sniper {
+    display: block;
+    background: linear-gradient(135deg, var(--accent-orange), var(--accent-red));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-size: 2.2rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 2.5rem;
+    letter-spacing: 1px;
+}
+
+.mode-select {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ─── Shared Button Styles ───────────────────────────────────────────────── */
+
+.mode-btn {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.5rem;
+    background: var(--bg-surface);
+    border: 1px solid rgba(79, 195, 247, 0.15);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: left;
+    width: 100%;
+    color: var(--text-primary);
+    font-family: var(--font);
+    touch-action: manipulation;
+}
+
+.mode-btn:hover, .mode-btn:active {
+    background: rgba(79, 195, 247, 0.1);
+    border-color: var(--accent-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(79, 195, 247, 0.15);
+}
+
+.mode-btn.rl {
+    border-color: rgba(179, 136, 255, 0.15);
+}
+
+.mode-btn.rl:hover, .mode-btn.rl:active {
+    background: rgba(179, 136, 255, 0.1);
+    border-color: var(--accent-purple);
+    box-shadow: 0 8px 30px rgba(179, 136, 255, 0.15);
+}
+
+.mode-btn.studio {
+    border-color: rgba(255, 215, 64, 0.2);
+    background: linear-gradient(135deg, rgba(255, 215, 64, 0.05), rgba(255, 171, 64, 0.05));
+}
+
+.mode-btn.studio:hover, .mode-btn.studio:active {
+    background: rgba(255, 215, 64, 0.12);
+    border-color: var(--accent-gold);
+    box-shadow: 0 8px 30px rgba(255, 215, 64, 0.15);
+}
+
+.mode-icon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.mode-label {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.mode-desc {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.status {
+    margin-top: 2rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: color 0.3s;
+}
+
+.status.connected { color: var(--accent-green); }
+.status.error { color: var(--accent-red); }
+
+/* ─── Studio Hub Screen ──────────────────────────────────────────────────── */
+
+#studio-screen {
+    background: var(--bg-dark);
+    z-index: 10;
+    overflow-y: auto;
+    touch-action: pan-y;
+    align-items: flex-start;
+}
+
+.studio-container {
+    width: 100%;
+    max-width: 800px;
+    padding: 1.5rem;
+    margin: 0 auto;
+    animation: fade-in 0.4s ease;
+}
+
+.studio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.studio-title {
+    font-size: 1.6rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 1px;
+}
+
+.studio-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.1rem;
+    background: var(--bg-surface);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.btn-icon:hover { background: rgba(255, 255, 255, 0.06); }
+.btn-icon.primary {
+    background: linear-gradient(135deg, rgba(255, 215, 64, 0.15), rgba(255, 171, 64, 0.12));
+    border-color: rgba(255, 215, 64, 0.3);
+}
+.btn-icon.primary:hover {
+    border-color: var(--accent-gold);
+    box-shadow: 0 4px 15px rgba(255, 215, 64, 0.2);
+}
+
+/* ─── Model Cards Grid ───────────────────────────────────────────────────── */
+
+.bots-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 600px) {
+    .bots-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.bot-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-md);
+    padding: 1.2rem;
+    transition: all 0.25s ease;
+}
+
+.bot-card:hover {
+    border-color: rgba(79, 195, 247, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.bot-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.8rem;
+}
+
+.bot-card-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.bot-card-status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.bot-card-status.created { background: rgba(136, 146, 176, 0.2); color: var(--text-secondary); }
+.bot-card-status.training { background: rgba(79, 195, 247, 0.15); color: var(--accent-blue); }
+.bot-card-status.completed { background: rgba(105, 240, 174, 0.15); color: var(--accent-green); }
+.bot-card-status.error { background: rgba(255, 82, 82, 0.15); color: var(--accent-red); }
+
+.bot-card-arch {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    font-family: 'Courier New', monospace;
+}
+
+.bot-card-progress {
+    margin-bottom: 0.6rem;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.3rem;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.progress-bar-fill.completed {
+    background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+}
+
+.progress-text {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+}
+
+.bot-card-stats {
+    display: flex;
+    gap: 1.2rem;
+    margin-bottom: 0.8rem;
+    font-size: 0.78rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.stat-label {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.bot-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-sm:hover { background: rgba(255, 255, 255, 0.06); }
+.btn-sm.play { border-color: rgba(105, 240, 174, 0.3); }
+.btn-sm.play:hover { border-color: var(--accent-green); color: var(--accent-green); }
+.btn-sm.watch { border-color: rgba(79, 195, 247, 0.3); }
+.btn-sm.watch:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.btn-sm.train { border-color: rgba(255, 215, 64, 0.3); }
+.btn-sm.train:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+.btn-sm.export { border-color: rgba(179, 136, 255, 0.3); }
+.btn-sm.export:hover { border-color: var(--accent-purple); color: var(--accent-purple); }
+.btn-sm.stop { border-color: rgba(255, 171, 64, 0.3); }
+.btn-sm.stop:hover { border-color: var(--accent-orange); color: var(--accent-orange); }
+.btn-sm.delete { border-color: rgba(255, 82, 82, 0.2); }
+.btn-sm.delete:hover { border-color: var(--accent-red); color: var(--accent-red); }
+
+.bots-empty {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.bots-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+/* ─── Register Bot Screen ────────────────────────────────────────────────── */
+
+#register-screen {
+    background: var(--bg-dark);
+    z-index: 10;
+    overflow-y: auto;
+    touch-action: pan-y;
+    align-items: flex-start;
+}
+
+.register-container {
+    width: 100%;
+    max-width: 500px;
+    padding: 1.5rem;
+    margin: 0 auto;
+    animation: fade-in 0.4s ease;
+}
+
+.register-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.form-group {
+    margin-bottom: 1.2rem;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+    touch-action: manipulation;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.form-input::placeholder {
+    color: var(--text-muted);
+}
+
+.form-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238892b0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+    touch-action: manipulation;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+}
+
+.arch-preview {
+    padding: 0.8rem 1rem;
+    background: var(--bg-input);
+    border: 1px solid rgba(179, 136, 255, 0.15);
+    border-radius: var(--radius-sm);
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--accent-purple);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.btn-form {
+    flex: 1;
+    padding: 0.85rem 1.2rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    touch-action: manipulation;
+}
+
+.btn-form.cancel {
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.btn-form.cancel:hover { background: rgba(255, 255, 255, 0.06); }
+
+.btn-form.submit {
+    background: linear-gradient(135deg, rgba(79, 195, 247, 0.2), rgba(0, 229, 255, 0.15));
+    color: var(--accent-cyan);
+    border-color: rgba(79, 195, 247, 0.3);
+}
+
+.btn-form.submit:hover {
+    border-color: var(--accent-blue);
+    box-shadow: 0 4px 20px rgba(79, 195, 247, 0.2);
+}
+
+/* ─── Global Training Bar ────────────────────────────────────────────────── */
+
+#training-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(90deg, rgba(79, 195, 247, 0.1), rgba(179, 136, 255, 0.1));
+    border-bottom: 1px solid rgba(79, 195, 247, 0.15);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 0 1rem;
+    z-index: 500;
+    font-size: 0.78rem;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+}
+
+#training-bar.visible {
+    display: flex;
+}
+
+.training-bar-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.training-bar-text {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.training-bar-stats {
+    color: var(--text-secondary);
+}
+
+.training-bar-btn {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: rgba(79, 195, 247, 0.15);
+    border: 1px solid rgba(79, 195, 247, 0.3);
+    border-radius: 6px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.2s;
+    touch-action: manipulation;
+}
+
+.training-bar-btn:hover {
+    background: rgba(79, 195, 247, 0.25);
+}
+
+/* ─── Game Screen ────────────────────────────────────────────────────────── */
+
+#game-screen {
+    background: var(--bg-dark);
+    z-index: 5;
+    touch-action: none;
+}
+
+#game-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+/* ─── HUD ────────────────────────────────────────────────────────────────── */
+
+#hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(to bottom, rgba(10, 14, 26, 0.85) 0%, transparent 100%);
+    z-index: 10;
+    pointer-events: none;
+}
+
+.hud-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hud-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0.7;
+}
+
+.hp-bar {
+    width: 100px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.hp-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.15s ease;
+}
+
+.hp-fill.player {
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+    width: 100%;
+}
+
+.hp-fill.enemy {
+    background: linear-gradient(90deg, var(--accent-red), var(--accent-orange));
+    width: 100%;
+}
+
+.hp-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 28px;
+    text-align: center;
+}
+
+.hud-timer {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─── Joystick Zones ─────────────────────────────────────────────────────── */
+
+.joystick-zone {
+    position: absolute;
+    bottom: 0;
+    width: 50%;
+    height: 60%;
+    z-index: 20;
+    touch-action: none;
+}
+
+#joystick-left { left: 0; }
+#joystick-right { right: 0; }
+
+/* ─── Result Screen ──────────────────────────────────────────────────────── */
+
+#result-screen {
+    background: rgba(10, 14, 26, 0.95);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    z-index: 100;
+}
+
+.result-container {
+    text-align: center;
+    padding: 2.5rem;
+    background: var(--bg-card);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    max-width: 360px;
+    width: 90%;
+    animation: fade-in 0.4s ease;
+}
+
+.result-title {
+    font-size: 3rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    letter-spacing: 3px;
+}
+
+.result-title.victory {
+    background: linear-gradient(135deg, var(--accent-green), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.result-title.defeat {
+    background: linear-gradient(135deg, var(--accent-red), var(--accent-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.result-sub {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-bottom: 2rem;
+}
+
+#btn-play-again {
+    justify-content: center;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.5); opacity: 0.4; }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
+.spectator-banner {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 171, 64, 0.2);
+    border: 1px solid var(--accent-orange);
+    color: var(--accent-orange);
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    z-index: 100;
+    pointer-events: none;
+    text-shadow: 0 2px 10px rgba(255, 171, 64, 0.5);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    animation: fade-in 0.3s ease;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Utility ────────────────────────────────────────────────────────────── */
+
+.hidden { display: none !important; }
+
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
