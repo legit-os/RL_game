@@ -31,6 +31,19 @@ const App = {
             this.showScreen('studio');
             ModelStudio.startAutoRefresh();
         });
+        document.getElementById('btn-imitation').addEventListener('click', () => {
+            this.showScreen('imitation');
+        });
+
+        // ─── Imitation Learning buttons ───────────────────────────────
+        document.getElementById('btn-back-menu-imitation').addEventListener('click', () => {
+            this.showScreen('menu');
+        });
+        document.getElementById('btn-play-record').addEventListener('click', () => {
+            const botSelect = document.getElementById('il-bot-select');
+            const selectedBot = botSelect.value;
+            this.startGameWithRecording(selectedBot);
+        });
 
         // ─── Studio buttons ───────────────────────────────────────────
         document.getElementById('btn-back-menu').addEventListener('click', () => {
@@ -65,11 +78,50 @@ const App = {
             ModelStudio.startAutoRefresh();
         });
 
+        // ─── Imitation recording result actions ───────────────────────
+        document.getElementById('btn-save-recording').addEventListener('click', async () => {
+            const statusEl = document.getElementById('result-save-status');
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#38bdf8';
+            statusEl.textContent = 'Saving match recording...';
+            try {
+                const res = await fetch('/api/imitation/save', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    statusEl.style.color = '#4ade80';
+                    statusEl.textContent = `✅ Saved ${data.steps} steps to ${data.filename}!`;
+                    document.getElementById('btn-save-recording').disabled = true;
+                    document.getElementById('btn-discard-recording').disabled = true;
+                } else {
+                    statusEl.style.color = '#f87171';
+                    statusEl.textContent = `❌ ${data.detail || 'Failed to save'}`;
+                }
+            } catch (e) {
+                statusEl.style.color = '#f87171';
+                statusEl.textContent = '❌ Network error saving recording';
+            }
+        });
+
+        document.getElementById('btn-discard-recording').addEventListener('click', async () => {
+            const statusEl = document.getElementById('result-save-status');
+            statusEl.style.display = 'block';
+            statusEl.style.color = '#94a3b8';
+            statusEl.textContent = 'Discarding recording...';
+            try {
+                await fetch('/api/imitation/discard', { method: 'POST' });
+                statusEl.textContent = '🗑️ Recording discarded.';
+                document.getElementById('btn-save-recording').disabled = true;
+                document.getElementById('btn-discard-recording').disabled = true;
+            } catch (e) {
+                statusEl.textContent = '🗑️ Recording discarded.';
+            }
+        });
+
         // ─── Training bar watch button ────────────────────────────────
         document.getElementById('training-bar-watch').addEventListener('click', () => {
             const botName = TrainingHUD.getActiveBotName();
             if (botName) {
-                this.startGameWithBot(botName, 'spectate_rl_vs_rule');
+                this.startGameWithBot(botName, 'spectate_training');
             }
         });
 
@@ -91,19 +143,28 @@ const App = {
      */
     startGame(mode) {
         this.selectedBotName = null;
-        this._launchGame(mode, null);
+        this._launchGame(mode, null, false);
     },
 
     /**
      * Start a game or spectate session with a specific trained bot.
      */
-    startGameWithBot(botName, mode) {
+    startGameWithBot(botName, mode, opponent = null, snapshot = null) {
         this.selectedBotName = botName;
-        this._launchGame(mode, botName);
+        this._launchGame(mode, botName, false, opponent, snapshot);
     },
 
-    _launchGame(mode, botName) {
+    /**
+     * Start an Imitation Learning recording session against a rule bot.
+     */
+    startGameWithRecording(ruleBotType) {
+        this.selectedBotName = ruleBotType;
+        this._launchGame('record', ruleBotType, true);
+    },
+
+    _launchGame(mode, botName, isRecording = false, opponent = null, snapshot = null) {
         this.isSpectating = mode.startsWith('spectate');
+        this.isRecording = isRecording;
 
         // Update HUD labels
         const playerLabel = document.getElementById('hud-label-player');
@@ -147,6 +208,9 @@ const App = {
             mode,
             botName,
             this.isSpectating,
+            isRecording,
+            opponent,
+            snapshot,
             // onStateUpdate
             (state) => {
                 this.currentState = state;
@@ -240,6 +304,29 @@ const App = {
             title.textContent = 'DEFEAT';
             title.className = 'result-title defeat';
             sub.textContent = 'You were eliminated.';
+        }
+
+        const saveBox = document.getElementById('result-save-box');
+        const saveStatus = document.getElementById('result-save-status');
+        const saveBtn = document.getElementById('btn-save-recording');
+        const discardBtn = document.getElementById('btn-discard-recording');
+
+        if (this.isRecording && saveBox) {
+            saveBox.style.display = 'block';
+            if (saveStatus) saveStatus.style.display = 'none';
+            if (saveBtn) saveBtn.disabled = false;
+            if (discardBtn) discardBtn.disabled = false;
+
+            // Fetch step count of captured game
+            fetch('/api/imitation/pending')
+                .then(res => res.json())
+                .then(info => {
+                    const stepsEl = document.getElementById('result-record-steps');
+                    if (stepsEl) stepsEl.textContent = info.steps || 0;
+                })
+                .catch(() => {});
+        } else if (saveBox) {
+            saveBox.style.display = 'none';
         }
 
         this.showScreen('result');

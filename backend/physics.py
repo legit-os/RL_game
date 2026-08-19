@@ -14,13 +14,16 @@ from dataclasses import dataclass, field
 
 # ─── Game Constants ───────────────────────────────────────────────────────────
 
-MAP_SIZE = 10.0            # Bounded area: [-10.0, 10.0] on both axes
+MAP_X_SIZE = 12.0          # Bounded area: [-12.0, 12.0] on X axis
+MAP_Y_SIZE = 20.0          # Bounded area: [-20.0, 20.0] on Y axis
 AGENT_SPEED = 0.1          # Units per tick
 BULLET_SPEED = 0.35        # Units per tick
-HITBOX_RADIUS = 0.35       # Collision radius (~3.5% of map width)
+HITBOX_RADIUS = 0.75       # Collision radius (increased for more reliable, responsive hits)
 MAX_HP = 100.0
 MAX_AMMO = 3.0
-RELOAD_TICKS = 30          # Ticks to reload 1 ammo slot (~0.5s at 60fps)
+RELOAD_TICKS = 90          # Ticks to reload 1 ammo slot (~1.5s at 60fps)
+ATTACK_COOLDOWN_TICKS = 15 # Ticks between consecutive shots (~0.25s at 60fps)
+MAX_BULLET_RANGE = 22.5    # Distance a bullet can travel before disappearing
 DAMAGE_PER_HIT = 34.0      # Flat damage (3-shot kill on 100 HP)
 BULLETS_PER_PLAYER = 5     # Max active bullets per player
 TOTAL_BULLETS = BULLETS_PER_PLAYER * 2  # 10 total
@@ -35,13 +38,14 @@ class PlayerState:
     hp: float
     ammo: float
     reload_timer: int
+    attack_cooldown: int     # Timer for attack cooldown
 
 
 @dataclass
 class GameState:
     p1: PlayerState
     p2: PlayerState
-    bullets: np.ndarray      # Shape: (10, 5) → [x, y, vx, vy, owner_id]
+    bullets: np.ndarray      # Shape: (10, 7) → [x, y, vx, vy, owner, dist, has_near_missed]
     tick_count: int = 0
     p1_damage_dealt: float = 0.0  # Accumulated this tick (for reward calc)
     p2_damage_dealt: float = 0.0
@@ -51,6 +55,8 @@ class GameState:
     p2_shots_fired: int = 0
     p1_hits: int = 0
     p2_hits: int = 0
+    p1_near_miss_score: float = 0.0
+    p2_near_miss_score: float = 0.0
     p1_dead: bool = False
     p2_dead: bool = False
 
@@ -64,20 +70,22 @@ def create_state(
     """Create a fresh game state with optional spawn positions."""
     return GameState(
         p1=PlayerState(
-            pos=np.array(p1_pos if p1_pos is not None else [-5.0, 0.0], dtype=np.float32),
+            pos=np.array(p1_pos if p1_pos is not None else [0.0, 15.0], dtype=np.float32),
             vel=np.zeros(2, dtype=np.float32),
             hp=MAX_HP,
             ammo=MAX_AMMO,
             reload_timer=0,
+            attack_cooldown=0,
         ),
         p2=PlayerState(
-            pos=np.array(p2_pos if p2_pos is not None else [5.0, 0.0], dtype=np.float32),
+            pos=np.array(p2_pos if p2_pos is not None else [0.0, -15.0], dtype=np.float32),
             vel=np.zeros(2, dtype=np.float32),
             hp=MAX_HP,
             ammo=MAX_AMMO,
             reload_timer=0,
+            attack_cooldown=0,
         ),
-        bullets=np.zeros((TOTAL_BULLETS, 5), dtype=np.float32),
+        bullets=np.zeros((TOTAL_BULLETS, 7), dtype=np.float32),
         tick_count=0,
         p1_damage_dealt=0.0,
         p2_damage_dealt=0.0,
@@ -87,6 +95,8 @@ def create_state(
         p2_shots_fired=0,
         p1_hits=0,
         p2_hits=0,
+        p1_near_miss_score=0.0,
+        p2_near_miss_score=0.0,
         p1_dead=False,
         p2_dead=False,
     )
@@ -118,6 +128,8 @@ def tick(state: GameState, action1: np.ndarray, action2: np.ndarray) -> GameStat
     state.p2_shots_fired = 0
     state.p1_hits = 0
     state.p2_hits = 0
+    state.p1_near_miss_score = 0.0
+    state.p2_near_miss_score = 0.0
 
     # --- 1. MOVEMENT (both players) ---
     _apply_movement(state.p1, action1)
@@ -155,7 +167,10 @@ def _apply_movement(player: PlayerState, action: np.ndarray) -> None:
 
     player.vel = move_vector * AGENT_SPEED
     player.pos = player.pos + player.vel
-    player.pos = np.clip(player.pos, -MAP_SIZE, MAP_SIZE)
+    
+    # Clamp independently for X and Y
+    player.pos[0] = np.clip(player.pos[0], -MAP_X_SIZE, MAP_X_SIZE)
+    player.pos[1] = np.clip(player.pos[1], -MAP_Y_SIZE, MAP_Y_SIZE)
 
 
 # ─── Reload ───────────────────────────────────────────────────────────────────
@@ -183,11 +198,14 @@ def _apply_shooting(
     Attempt to fire a bullet for this player.
     Returns: number of shots fired (0 or 1).
     """
+    if player.attack_cooldown > 0:
+        player.attack_cooldown -= 1
+
     shoot_trigger = action[4]
     aim_vector = action[2:4].astype(np.float32)
     aim_mag = np.linalg.norm(aim_vector)
 
-    if shoot_trigger > 0.0 and player.ammo >= 1.0 and aim_mag > 0.1:
+    if shoot_trigger > 0.0 and player.ammo >= 1.0 and aim_mag > 0.1 and player.attack_cooldown <= 0:
         # Find empty slot in this player's range
         player_bullets = bullets[slot_start:slot_end]
         empty_mask = np.all(player_bullets == 0, axis=1)
@@ -202,8 +220,11 @@ def _apply_shooting(
                 direction[0] * BULLET_SPEED,
                 direction[1] * BULLET_SPEED,
                 owner_id,
+                0.0, # distance_traveled
+                5.0, # closest_distance (init to max tracking radius)
             ]
             player.ammo -= 1.0
+            player.attack_cooldown = ATTACK_COOLDOWN_TICKS
 
             # Start reload cycle if not already running
             if player.reload_timer <= 0:
@@ -227,11 +248,23 @@ def _advance_bullets(state: GameState) -> None:
 
     # Advance positions
     bullets[active_mask, 0:2] += bullets[active_mask, 2:4]
+    
+    # Increase distance traveled
+    bullets[active_mask, 5] += BULLET_SPEED
 
     # --- Collision: Player 1's bullets (owner=1) vs Player 2 ---
     p1_bullets_mask = active_mask & (bullets[:, 4] == 1)
     if np.any(p1_bullets_mask):
         dist_to_p2 = np.linalg.norm(bullets[:, 0:2] - state.p2.pos, axis=1)
+        
+        # Incremental near miss score
+        old_closest = bullets[p1_bullets_mask, 6]
+        new_closest = np.minimum(old_closest, dist_to_p2[p1_bullets_mask])
+        improvement = old_closest - new_closest
+        if np.any(improvement > 0):
+            state.p1_near_miss_score += float(np.sum(improvement[improvement > 0]))
+            bullets[p1_bullets_mask, 6] = new_closest
+
         p1_hits = p1_bullets_mask & (dist_to_p2 < HITBOX_RADIUS)
         if np.any(p1_hits):
             hit_count = int(np.sum(p1_hits))
@@ -246,6 +279,15 @@ def _advance_bullets(state: GameState) -> None:
     p2_bullets_mask = active_mask & (bullets[:, 4] == 2)
     if np.any(p2_bullets_mask):
         dist_to_p1 = np.linalg.norm(bullets[:, 0:2] - state.p1.pos, axis=1)
+        
+        # Incremental near miss score
+        old_closest = bullets[p2_bullets_mask, 6]
+        new_closest = np.minimum(old_closest, dist_to_p1[p2_bullets_mask])
+        improvement = old_closest - new_closest
+        if np.any(improvement > 0):
+            state.p2_near_miss_score += float(np.sum(improvement[improvement > 0]))
+            bullets[p2_bullets_mask, 6] = new_closest
+
         p2_hits = p2_bullets_mask & (dist_to_p1 < HITBOX_RADIUS)
         if np.any(p2_hits):
             hit_count = int(np.sum(p2_hits))
@@ -256,12 +298,16 @@ def _advance_bullets(state: GameState) -> None:
             state.p2_hits += hit_count
             bullets[p2_hits] = 0.0
 
-    # --- Despawn out-of-bounds ---
-    oob = (np.abs(bullets[:, 0]) > MAP_SIZE) | (np.abs(bullets[:, 1]) > MAP_SIZE)
+    # --- Despawn out-of-bounds or max range ---
+    oob_x = np.abs(bullets[:, 0]) > MAP_X_SIZE
+    oob_y = np.abs(bullets[:, 1]) > MAP_Y_SIZE
+    too_far = bullets[:, 5] >= MAX_BULLET_RANGE
+    despawn_mask = (oob_x | oob_y | too_far)
+    
     # Only clear active bullets that went OOB (don't touch inactive zeros)
-    oob_active = oob & active_mask
-    if np.any(oob_active):
-        bullets[oob_active] = 0.0
+    despawn_active = despawn_mask & active_mask
+    if np.any(despawn_active):
+        bullets[despawn_active] = 0.0
 
 
 # ─── Observation ──────────────────────────────────────────────────────────────
@@ -308,8 +354,12 @@ def get_obs(state: GameState, perspective: int) -> np.ndarray:
     dist_enemy = np.linalg.norm(rel_enemy)
     angle_enemy = np.arctan2(rel_enemy[1], rel_enemy[0]) / np.pi
 
-    obs[5:7] = rel_enemy / (MAP_SIZE * 2.0)
-    obs[7] = dist_enemy / (MAP_SIZE * 2.0)
+    obs[5] = rel_enemy[0] / (MAP_X_SIZE * 2.0)
+    obs[6] = rel_enemy[1] / (MAP_Y_SIZE * 2.0)
+    
+    # Normalize distance based on max possible map distance
+    max_map_dist = np.sqrt((MAP_X_SIZE * 2)**2 + (MAP_Y_SIZE * 2)**2)
+    obs[7] = dist_enemy / max_map_dist
     obs[8] = angle_enemy
     obs[9] = them.hp / MAX_HP
 
@@ -319,9 +369,8 @@ def get_obs(state: GameState, perspective: int) -> np.ndarray:
 
     if np.any(active):
         rel_bullets = np.zeros((TOTAL_BULLETS, 4), dtype=np.float32)
-        rel_bullets[active, 0:2] = (
-            bullets[active, 0:2] - me.pos
-        ) / (MAP_SIZE * 2.0)
+        rel_bullets[active, 0] = (bullets[active, 0] - me.pos[0]) / (MAP_X_SIZE * 2.0)
+        rel_bullets[active, 1] = (bullets[active, 1] - me.pos[1]) / (MAP_Y_SIZE * 2.0)
         rel_bullets[active, 2:4] = bullets[active, 2:4] / BULLET_SPEED
 
         # We only have 5 observation slots — pick the 5 closest bullets
@@ -339,6 +388,20 @@ def get_obs(state: GameState, perspective: int) -> np.ndarray:
             distances = np.linalg.norm(rel_bullets[active_indices, 0:2], axis=1)
             closest_5 = active_indices[np.argsort(distances)[:5]]
             obs[10:30] = rel_bullets[closest_5].flatten()
+
+    if perspective == 2:
+        # Rotational invariance: rotate the world 180 degrees
+        obs[3:5] = -obs[3:5]           # Flip self velocity
+        obs[5:7] = -obs[5:7]           # Flip relative enemy pos
+        
+        # Rotate angle by 180 degrees (pi radians)
+        angle = obs[8] + 1.0
+        if angle > 1.0:
+            angle -= 2.0
+        obs[8] = angle
+        
+        # Flip relative bullet positions and velocities
+        obs[10:30] = -obs[10:30]
 
     return obs
 

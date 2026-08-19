@@ -10,6 +10,8 @@ Spectator:  Player 1 = bot A (RL/rule), Player 2 = bot B (RL/rule)
 import asyncio
 import time
 import numpy as np
+import os
+from datetime import datetime
 
 from backend.physics import (
     GameState,
@@ -18,7 +20,7 @@ from backend.physics import (
     get_obs,
     state_to_dict,
 )
-from backend.rule_bot import RuleBot
+from backend.curriculum_bots import Level1Bot, Level2Bot, Level3Bot, Level4Bot, Level5Bot
 from backend.ai_inference import ONNXBot, FallbackBot
 
 
@@ -37,28 +39,35 @@ class GameSession:
       - "spectate_rl_vs_rl": RL Bot (P1) vs RL Bot (P2) — no human input
     """
 
-    def __init__(self, mode: str = "rule_bot", model_path: str | None = None):
+    def __init__(self, mode: str = "rule_bot", model_path: str | None = None, record: bool = False, selected_bot: str = None, opponent: str = None):
         """
         Args:
             mode: Game mode string
             model_path: Path to .onnx model for RL bot(s)
+            record: Whether to record P1 gameplay data
+            selected_bot: The name of the specific rule bot to use
         """
         self.mode = mode
         self.state: GameState = create_state()
         self.is_running = False
         self.is_spectating = mode.startswith("spectate")
+        self.record = record
 
         # Human input (updated by WebSocket handler in play modes)
         self._human_action = np.zeros(5, dtype=np.float32)
+        
+        # Buffers for imitation learning
+        self._obs_buffer = []
+        self._action_buffer = []
 
         # --- Initialize bots based on mode ---
         self.p1_bot = None  # Only used in spectator mode
         self.p2_bot = None  # Always used (opponent)
 
         if mode == "spectate_rl_vs_rule":
-            # P1 = RL bot, P2 = Rule bot
+            # P1 = RL bot, P2 = Rule bot (or explicitly chosen opponent)
             self.p1_bot = self._make_bot("rl", model_path)
-            self.p2_bot = RuleBot()
+            self.p2_bot = self._make_bot(opponent if opponent else "rule", None)
         elif mode == "spectate_rl_vs_rl":
             # P1 = RL bot, P2 = RL bot (same model, two instances)
             self.p1_bot = self._make_bot("rl", model_path)
@@ -66,9 +75,9 @@ class GameSession:
         elif mode == "rl_bot":
             # Human P1, RL P2
             self.p2_bot = self._make_bot("rl", model_path)
-        elif mode == "rule_bot":
-            # Human P1, Rule P2
-            self.p2_bot = RuleBot()
+        elif mode == "rule_bot" or mode == "record":
+            # Human P1, Rule P2 (user can specify which rule bot)
+            self.p2_bot = self._make_bot(selected_bot if selected_bot else "rule", None)
         else:
             self.p2_bot = FallbackBot()
 
@@ -78,9 +87,22 @@ class GameSession:
             try:
                 return ONNXBot(model_path)
             except (RuntimeError, FileNotFoundError) as e:
-                print(f"[WARN] ONNX model unavailable ({e}), falling back to rule bot")
-                return RuleBot()
-        return RuleBot() if bot_type == "rule" else FallbackBot()
+                print(f"[WARN] ONNX model unavailable ({e}), falling back to Level4Bot")
+                return Level4Bot()
+                
+        # Rule bots & aliases
+        if bot_type in ("level1", "lazy"):
+            return Level1Bot()
+        elif bot_type in ("level2", "sniper"):
+            return Level2Bot()
+        elif bot_type in ("level3", "evasive"):
+            return Level3Bot()
+        elif bot_type in ("level4", "rule"):
+            return Level4Bot()
+        elif bot_type in ("level5", "aggressive"):
+            return Level5Bot()
+            
+        return Level4Bot() if bot_type == "rule" else FallbackBot()
 
     def set_human_input(self, mx: float, my: float, ax: float, ay: float, st: float):
         """
@@ -128,7 +150,12 @@ class GameSession:
 
                 # --- Get Player 2 action ---
                 p2_obs = get_obs(self.state, perspective=2)
-                action2 = self.p2_bot.predict(p2_obs)
+                action2 = self.p2_bot.predict(p2_obs).copy()
+                action2[0:4] = -action2[0:4]  # Rotate from P2 perspective to world space
+                if self.record and not self.is_spectating:
+                    p1_obs = get_obs(self.state, perspective=1)
+                    self._obs_buffer.append(p1_obs)
+                    self._action_buffer.append(action1.copy())
 
                 # --- Tick physics ---
                 tick(self.state, action1=action1, action2=action2)
@@ -182,3 +209,55 @@ class GameSession:
     def stop(self):
         """Stop the game loop."""
         self.is_running = False
+        if self.record and len(self._obs_buffer) > 0:
+            global _pending_recording
+            _pending_recording = {
+                "obs": list(self._obs_buffer),
+                "act": list(self._action_buffer),
+            }
+            self._obs_buffer.clear()
+            self._action_buffer.clear()
+
+
+# Buffer holding the last recorded game pending user confirmation
+_pending_recording = None
+
+
+def save_pending_recording() -> dict:
+    global _pending_recording
+    if _pending_recording is None or len(_pending_recording.get("obs", [])) == 0:
+        return {"status": "error", "message": "No pending recording found"}
+    
+    dataset_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "datasets"))
+    os.makedirs(dataset_dir, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = os.path.join(dataset_dir, f"imitation_data_{timestamp}.npz")
+    
+    obs_arr = np.array(_pending_recording["obs"], dtype=np.float32)
+    act_arr = np.array(_pending_recording["act"], dtype=np.float32)
+    
+    np.savez_compressed(
+        filename,
+        observations=obs_arr,
+        actions=act_arr,
+    )
+    steps = len(obs_arr)
+    print(f"[Record] User saved {steps} steps to {filename}")
+    
+    _pending_recording = None
+    return {"status": "saved", "filename": os.path.basename(filename), "steps": steps}
+
+
+def discard_pending_recording() -> dict:
+    global _pending_recording
+    _pending_recording = None
+    print("[Record] User discarded pending recording")
+    return {"status": "discarded"}
+
+
+def get_pending_recording_info() -> dict:
+    global _pending_recording
+    if _pending_recording and len(_pending_recording.get("obs", [])) > 0:
+        return {"has_pending": True, "steps": len(_pending_recording.get("obs", []))}
+    return {"has_pending": False, "steps": 0}

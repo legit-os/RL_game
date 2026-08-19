@@ -51,13 +51,14 @@ const TrainingHUD = {
         const nameEl = document.getElementById('training-bar-name');
         const statsEl = document.getElementById('training-bar-stats');
 
-        const current = job.current_step || 0;
-        const total = job.total_timesteps || 1;
-        const pct = ((current / total) * 100).toFixed(1);
+        const matches = job.matches_played || 0;
         const reward = job.avg_reward || 0;
+        const level = job.curriculum_level !== undefined ? job.curriculum_level : 1;
+        const levelWinRate = job.level_win_rate !== undefined ? Number(job.level_win_rate).toFixed(1) : '0.0';
+        const levelMatches = job.level_matches || 0;
 
         nameEl.textContent = `⚡ ${job.bot_name}`;
-        statsEl.textContent = `${this._fmt(current)} / ${this._fmt(total)} (${pct}%) | Reward: ${reward >= 0 ? '+' : ''}${reward.toFixed(1)}`;
+        statsEl.textContent = `⭐ Lvl ${level}/5 | Win Rate: ${levelWinRate}% (${levelMatches}/100) | ${this._fmt(matches)} Matches | Reward: ${reward >= 0 ? '+' : ''}${reward.toFixed(1)}`;
 
         const watchBtn = document.getElementById('training-bar-watch');
         if (watchBtn) {

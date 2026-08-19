@@ -40,8 +40,10 @@ const Renderer = {
         joystickBorder: 'rgba(79, 195, 247, 0.4)',
     },
 
-    MAP_SIZE: 10.0,      // Game world is [-10, 10]
-    PLAYER_RADIUS: 0.35, // Visual radius (matches hitbox)
+    MAP_X_SIZE: 12.0,    // Game world is [-12, 12] on X
+    MAP_Y_SIZE: 20.0,    // Game world is [-20, 20] on Y
+    MAX_BULLET_RANGE: 22.5, // Matches physics.py
+    PLAYER_RADIUS: 0.75, // Visual radius (matches hitbox)
 
     init() {
         this.canvas = document.getElementById('game-canvas');
@@ -61,12 +63,13 @@ const Renderer = {
         this.canvas.style.height = this.height + 'px';
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        // Calculate scale to fit the 20x20 game world into the screen
-        const worldSize = this.MAP_SIZE * 2;
+        // Calculate scale to fit the game world into the screen
+        const worldWidth = this.MAP_X_SIZE * 2;
+        const worldHeight = this.MAP_Y_SIZE * 2;
         const padding = 20;
         this.scale = Math.min(
-            (this.width - padding * 2) / worldSize,
-            (this.height - padding * 2) / worldSize
+            (this.width - padding * 2) / worldWidth,
+            (this.height - padding * 2) / worldHeight
         );
         this.offsetX = this.width / 2;
         this.offsetY = this.height / 2;
@@ -103,13 +106,49 @@ const Renderer = {
         }
 
         if (!this.spectateMode) {
+            // Draw aiming trajectory if right joystick is active
+            if (gameState && gameState.p) {
+                const right = Controls.getRightStick();
+                if (right.active && (Math.abs(right.dx) > 0 || Math.abs(right.dy) > 0)) {
+                    this._drawAimTrajectory(ctx, gameState.p, right);
+                }
+            }
             this._drawJoysticks(ctx);
         }
     },
 
+    _drawAimTrajectory(ctx, playerData, rightStick) {
+        const [wx, wy] = playerData;
+        const pos = this.worldToScreen(wx, wy);
+        
+        // Calculate aim direction vector from joystick input
+        // dx and dy are the pixel offsets of the stick, which map directly to world direction
+        let ax = rightStick.dx;
+        let ay = rightStick.dy;
+        const mag = Math.sqrt(ax*ax + ay*ay);
+        if (mag === 0) return;
+        
+        ax /= mag;
+        ay /= mag;
+        
+        // Range line (e.g. max 15.0 units)
+        const endPos = this.worldToScreen(wx + ax * this.MAX_BULLET_RANGE, wy + ay * this.MAX_BULLET_RANGE);
+        
+        // Draw the aim cone / line
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+        ctx.lineTo(endPos.x, endPos.y);
+        ctx.strokeStyle = 'rgba(255, 171, 64, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.setLineDash([10, 10]); // dashed line for aim
+        ctx.stroke();
+        ctx.setLineDash([]); // reset
+    },
+
     _drawArena(ctx) {
-        const tl = this.worldToScreen(-this.MAP_SIZE, -this.MAP_SIZE);
-        const br = this.worldToScreen(this.MAP_SIZE, this.MAP_SIZE);
+        const tl = this.worldToScreen(-this.MAP_X_SIZE, -this.MAP_Y_SIZE);
+        const br = this.worldToScreen(this.MAP_X_SIZE, this.MAP_Y_SIZE);
         const w = br.x - tl.x;
         const h = br.y - tl.y;
 
@@ -120,17 +159,17 @@ const Renderer = {
         // Grid lines
         ctx.strokeStyle = this.COLORS.grid;
         ctx.lineWidth = 1;
-        for (let i = -this.MAP_SIZE; i <= this.MAP_SIZE; i += 2) {
-            const from = this.worldToScreen(i, -this.MAP_SIZE);
-            const to = this.worldToScreen(i, this.MAP_SIZE);
+        for (let i = -this.MAP_X_SIZE; i <= this.MAP_X_SIZE; i += 2) {
+            const from = this.worldToScreen(i, -this.MAP_Y_SIZE);
+            const to = this.worldToScreen(i, this.MAP_Y_SIZE);
             ctx.beginPath();
             ctx.moveTo(from.x, from.y);
             ctx.lineTo(to.x, to.y);
             ctx.stroke();
-
-            const fromH = this.worldToScreen(-this.MAP_SIZE, i);
-            const toH = this.worldToScreen(-this.MAP_SIZE, i);
-            const toH2 = this.worldToScreen(this.MAP_SIZE, i);
+        }
+        for (let i = -this.MAP_Y_SIZE; i <= this.MAP_Y_SIZE; i += 2) {
+            const fromH = this.worldToScreen(-this.MAP_X_SIZE, i);
+            const toH2 = this.worldToScreen(this.MAP_X_SIZE, i);
             ctx.beginPath();
             ctx.moveTo(fromH.x, fromH.y);
             ctx.lineTo(toH2.x, toH2.y);

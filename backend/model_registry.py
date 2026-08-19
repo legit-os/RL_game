@@ -3,7 +3,7 @@ model_registry.py — CRUD manager for trained bot metadata.
 
 Each bot lives in models/<bot_name>/ with:
   - metadata.json  (config, progress, stats)
-  - model.zip      (SB3 PyTorch checkpoint)
+  - model.pt       (native PyTorch checkpoint)
   - model.onnx     (production inference model)
 """
 
@@ -45,7 +45,13 @@ def list_bots() -> list[dict[str, Any]]:
                     data = json.load(f)
                 bot_dir = _bot_dir(folder_name)
                 data["has_onnx"] = os.path.isfile(os.path.join(bot_dir, "model.onnx"))
-                data["has_model"] = os.path.isfile(os.path.join(bot_dir, "model.zip"))
+                data["has_model"] = os.path.isfile(os.path.join(bot_dir, "model.pt"))
+                
+                snapshots = [f for f in os.listdir(bot_dir) if f.startswith("model_lvl_") and f.endswith(".onnx")]
+                if data["has_onnx"]:
+                    snapshots.append("model.onnx")
+                data["snapshots"] = sorted(snapshots)
+                
                 bots.append(data)
             except (json.JSONDecodeError, IOError):
                 continue
@@ -62,7 +68,13 @@ def get_bot(bot_name: str) -> dict[str, Any] | None:
             data = json.load(f)
         bot_dir = _bot_dir(bot_name)
         data["has_onnx"] = os.path.isfile(os.path.join(bot_dir, "model.onnx"))
-        data["has_model"] = os.path.isfile(os.path.join(bot_dir, "model.zip"))
+        data["has_model"] = os.path.isfile(os.path.join(bot_dir, "model.pt"))
+        
+        snapshots = [f for f in os.listdir(bot_dir) if f.startswith("model_lvl_") and f.endswith(".onnx")]
+        if data["has_onnx"]:
+            snapshots.append("model.onnx")
+        data["snapshots"] = sorted(snapshots)
+        
         return data
     except (json.JSONDecodeError, IOError):
         return None
@@ -98,11 +110,17 @@ def create_bot(bot_name: str, config: dict[str, Any]) -> dict[str, Any]:
         "layers": config.get("layers", [128, 128]),
         "activation": config.get("activation", "relu"),
         "learning_rate": float(config.get("learning_rate", 3e-4)),
+        "use_lr_scheduler": bool(config.get("use_lr_scheduler", False)),
         "total_timesteps": int(config.get("total_timesteps", 3_000_000)),
-        "n_envs": int(config.get("n_envs", 8)),
-        "batch_size": int(config.get("batch_size", 64)),
-        "n_steps": int(config.get("n_steps", 2048)),
+        "n_envs": int(config.get("n_envs", 4)),
+        "batch_size": int(config.get("batch_size", 512)),
+        "n_steps": int(config.get("n_steps", 4096)),
         "current_step": 0,
+        "matches_played": 0,
+        "curriculum_level": 3 if config.get("base_model") else int(config.get("curriculum_level", 1)),
+        "base_model": config.get("base_model", ""),
+        "level_win_rate": 0.0,
+        "level_matches": 0,
         "avg_reward": 0.0,
         "win_rate": 0.0,
         "status": "created",  # created | training | completed | error
@@ -165,8 +183,8 @@ def get_bot_dir(bot_name: str) -> str:
 
 
 def get_model_path(bot_name: str) -> str | None:
-    """Return the path to the bot's .zip model file, or None if it doesn't exist."""
-    path = os.path.join(_bot_dir(bot_name), "model.zip")
+    """Return the path to the bot's .pt model file, or None if it doesn't exist."""
+    path = os.path.join(_bot_dir(bot_name), "model.pt")
     return path if os.path.isfile(path) else None
 
 

@@ -21,14 +21,19 @@ const GameSocket = {
      * @param {string} mode - "rule_bot", "rl_bot", "spectate_rl_vs_rule", etc.
      * @param {string|null} botName - Name of a specific trained bot to use
      * @param {boolean} isSpectating - Whether this is a spectator session
+     * @param {boolean} isRecording - Whether to record the game data
      * @param {Function} onStateUpdate - callback(stateDict)
      * @param {Function} onGameOver - callback(winner)
      * @param {Function} onDisconnect - callback(isError)
      */
-    connect(mode, botName, isSpectating, onStateUpdate, onGameOver, onDisconnect) {
+    connect(mode, botName, isSpectating, isRecording, opponent, snapshot, onStateUpdate, onGameOver, onDisconnect) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
-        const url = `${protocol}//${host}/ws`;
+        let url = `${protocol}//${host}/ws`;
+
+        if (mode === 'spectate_training' && botName) {
+            url = `${protocol}//${host}/ws/training/${botName}`;
+        }
 
         this._isSpectating = isSpectating;
 
@@ -40,8 +45,10 @@ const GameSocket = {
             this.isConnected = true;
 
             // Send init message with mode and optional bot name
-            const initMsg = { mode: mode };
+            const initMsg = { mode: mode, record: isRecording };
             if (botName) initMsg.bot = botName;
+            if (opponent) initMsg.opponent = opponent;
+            if (snapshot) initMsg.snapshot = snapshot;
             this.ws.send(JSON.stringify(initMsg));
 
             // Only send input in play mode (not spectating)
@@ -54,6 +61,12 @@ const GameSocket = {
             try {
                 const data = JSON.parse(event.data);
                 this.latestState = data;
+
+                // Training spectator may send a status message when not training
+                if (data.status === 'not_training') {
+                    onStateUpdate({ p: [0, 15, 100], e: [0, -15, 100], t: 0, bs: [] }); // Dummy state
+                    return;
+                }
 
                 // Check for game over
                 if (data.go !== undefined) {

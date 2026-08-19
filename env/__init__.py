@@ -1,3 +1,3 @@
-from env.brawl_sniper_env import BrawlSniperEnv
+from env.env import BrawlEnv, VecEnv
 
-__all__ = ["BrawlSniperEnv"]
+__all__ = ["BrawlEnv", "VecEnv"]

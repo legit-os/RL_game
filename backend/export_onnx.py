@@ -1,77 +1,78 @@
 """
-export_onnx.py — Convert SB3 PPO checkpoint to ONNX for production inference.
+export_onnx.py — Export native PyTorch Actor to ONNX for production inference.
 
-Called automatically by trainer_worker on completion, or manually via the API.
-Extracts the policy actor network and exports it as a standalone ONNX graph.
+No SB3 dependency. Works directly with our Actor model.
 """
 
 import os
 import numpy as np
 
 
-def export_model(model_zip_path: str, onnx_output_path: str) -> bool:
+def export_model(model_pt_path: str, onnx_output_path: str, obs_dim: int = 90,
+                 act_dim: int = 5, layers: list[int] | None = None,
+                 activation: str = "silu") -> bool:
     """
-    Export an SB3 PPO model's policy network to ONNX format.
+    Export a native PyTorch Actor model to ONNX format.
 
     Args:
-        model_zip_path: Path to the .zip model file (SB3 format)
+        model_pt_path: Path to the .pt checkpoint file
         onnx_output_path: Path to write the .onnx file
+        obs_dim: Observation dimension (default: 90 for 3-frame stack)
+        act_dim: Action dimension (default: 5)
+        layers: Hidden layer sizes (default: read from checkpoint)
+        activation: Activation function name
 
     Returns:
         True if export succeeded, False otherwise.
     """
     try:
         import torch
-        from stable_baselines3 import PPO
+        from backend.models import Actor
     except ImportError as e:
         print(f"[ONNX Export] Missing dependency: {e}")
         return False
 
-    if not os.path.isfile(model_zip_path):
-        print(f"[ONNX Export] Model not found: {model_zip_path}")
+    if not os.path.isfile(model_pt_path):
+        print(f"[ONNX Export] Model not found: {model_pt_path}")
         return False
 
-    print(f"[ONNX Export] Loading model from {model_zip_path}...")
-    model = PPO.load(model_zip_path, device="cpu")
-    
-    # Dynamically determine if using VecFrameStack or standard
-    obs_size = model.observation_space.shape[0]
+    print(f"[ONNX Export] Loading model from {model_pt_path}...")
+    checkpoint = torch.load(model_pt_path, map_location="cpu", weights_only=False)
 
-    # Extract the actor (policy) network for deterministic inference
-    # SB3's MlpPolicy has policy.action_net + policy.mu (for continuous actions)
-    policy = model.policy
-    policy.set_training_mode(False)
+    # Try to read architecture from checkpoint hyperparams
+    if layers is None:
+        hp = checkpoint.get("hyperparams", {})
+        # If no hyperparams stored, try to infer from state dict keys
+        if "actor" in checkpoint:
+            actor_state = checkpoint["actor"]
+        else:
+            actor_state = checkpoint  # Might be a raw state dict
 
-    # Create a wrapper that takes obs and returns deterministic actions
-    class PolicyWrapper(torch.nn.Module):
-        def __init__(self, sb3_policy):
-            super().__init__()
-            self.features_extractor = sb3_policy.features_extractor
-            self.mlp_extractor = sb3_policy.mlp_extractor
-            self.action_net = sb3_policy.action_net
+        # Default fallback
+        layers = [256, 256, 128]
 
-        def forward(self, obs):
-            features = self.features_extractor(obs)
-            latent_pi, _ = self.mlp_extractor(features)
-            actions = self.action_net(latent_pi)
-            # Squash to [-1, 1] via tanh
-            return torch.tanh(actions)
+    # Create actor and load weights
+    actor = Actor(obs_dim=obs_dim, act_dim=act_dim, hidden_layers=layers, activation=activation)
 
-    wrapper = PolicyWrapper(policy)
-    wrapper.eval()
+    if "actor" in checkpoint:
+        actor.load_state_dict(checkpoint["actor"])
+    else:
+        # Try loading as raw state dict
+        actor.load_state_dict(checkpoint)
 
-    # Dummy input for tracing
-    dummy_obs = torch.randn(1, obs_size, dtype=torch.float32)
+    actor.eval()
 
+    # Export to ONNX
+    dummy_obs = torch.randn(1, obs_dim, dtype=torch.float32)
     print(f"[ONNX Export] Exporting to {onnx_output_path}...")
-    os.makedirs(os.path.dirname(onnx_output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(onnx_output_path) if os.path.dirname(onnx_output_path) else ".", exist_ok=True)
 
     torch.onnx.export(
-        wrapper,
+        actor,
         dummy_obs,
         onnx_output_path,
         export_params=True,
-        opset_version=11,
+        opset_version=18,
         do_constant_folding=True,
         input_names=["observation"],
         output_names=["action"],
@@ -81,7 +82,7 @@ def export_model(model_zip_path: str, onnx_output_path: str) -> bool:
         },
     )
 
-    # Verify the exported model
+    # Verify
     try:
         import onnx
         onnx_model = onnx.load(onnx_output_path)
@@ -94,7 +95,7 @@ def export_model(model_zip_path: str, onnx_output_path: str) -> bool:
     try:
         import onnxruntime as ort
         sess = ort.InferenceSession(onnx_output_path, providers=["CPUExecutionProvider"])
-        test_obs = np.random.randn(1, obs_size).astype(np.float32)
+        test_obs = np.random.randn(1, obs_dim).astype(np.float32)
         result = sess.run(None, {"observation": test_obs})
         action = result[0]
         print(f"[ONNX Export] [OK] Inference test passed! Output shape: {action.shape}")
@@ -108,6 +109,6 @@ def export_model(model_zip_path: str, onnx_output_path: str) -> bool:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 3:
-        print("Usage: python export_onnx.py <model.zip> <output.onnx>")
+        print("Usage: python export_onnx.py <model.pt> <output.onnx>")
         sys.exit(1)
     export_model(sys.argv[1], sys.argv[2])

@@ -22,6 +22,11 @@ const Controls = {
     _rightOrigin: { x: 0, y: 0 },
     _leftTouchId: null,
     _rightTouchId: null,
+    
+    // Buffer for reliable firing
+    _fireNextPayload: false,
+    _fireAimX: 0,
+    _fireAimY: 0,
 
     // Canvas element references for drawing joystick indicators
     _leftZone: null,
@@ -78,6 +83,10 @@ const Controls = {
         if (!this._rightActive) {
             this.aimX = ax;
             this.aimY = ay;
+            // On keyboard, we can keep the continuous fire if both keys pressed, 
+            // but to match hold-to-aim: shootTrigger = 1 when keys are released?
+            // For simplicity on keyboard, let's just allow continuous fire or spacebar to fire.
+            // But we're mostly focused on touch for mobile.
             this.shootTrigger = (Math.abs(ax) + Math.abs(ay)) > 0 ? 1 : -1;
         }
     },
@@ -119,6 +128,16 @@ const Controls = {
             } else if (touch.identifier === this._rightTouchId) {
                 this._rightTouchId = null;
                 this._rightActive = false;
+                
+                // If they released the joystick and they had aimed far enough, FIRE!
+                let mag = Math.sqrt(this.aimX * this.aimX + this.aimY * this.aimY);
+                if (mag > this.FIRE_THRESHOLD) {
+                    // Buffer the fire event so it's guaranteed to be sent in the next WS payload
+                    this._fireNextPayload = true;
+                    this._fireAimX = this.aimX;
+                    this._fireAimY = this.aimY;
+                }
+                
                 this.aimX = 0;
                 this.aimY = 0;
                 this.shootTrigger = -1;
@@ -159,8 +178,9 @@ const Controls = {
         } else {
             this.aimX = nx;
             this.aimY = ny;
-            // Auto-fire when aim stick is deflected beyond threshold
-            this.shootTrigger = mag > this.FIRE_THRESHOLD ? 1 : -1;
+            // DO NOT Auto-fire while holding. Just aim.
+            // Fire happens on touchend.
+            this.shootTrigger = -1;
         }
     },
 
@@ -191,12 +211,24 @@ const Controls = {
      * Get compact input payload for WebSocket.
      */
     getPayload() {
+        let ax = this.aimX;
+        let ay = this.aimY;
+        let st = this.shootTrigger > 0 ? 1 : 0;
+        
+        // If a fire event was buffered on release, override this payload
+        if (this._fireNextPayload) {
+            ax = this._fireAimX;
+            ay = this._fireAimY;
+            st = 1;
+            this._fireNextPayload = false; // Consume the event
+        }
+        
         return {
             mx: Math.round(this.moveX * 100) / 100,
             my: Math.round(this.moveY * 100) / 100,
-            ax: Math.round(this.aimX * 100) / 100,
-            ay: Math.round(this.aimY * 100) / 100,
-            st: this.shootTrigger > 0 ? 1 : 0,
+            ax: Math.round(ax * 100) / 100,
+            ay: Math.round(ay * 100) / 100,
+            st: st,
         };
     }
 };

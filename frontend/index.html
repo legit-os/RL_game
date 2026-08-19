@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <meta name="description" content="Brawl Sniper RL Studio — Train, Play, and Spectate AI Agents">
     <title>Brawl Sniper RL Studio</title>
-    <link rel="stylesheet" href="/style.css?v=5">
+    <link rel="stylesheet" href="/style.css?v=10">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- ═══ GLOBAL TRAINING BAR ═══ -->
     <div id="training-bar">
         <div class="training-bar-pulse"></div>
         <span class="training-bar-text" id="training-bar-name">Training...</span>
-        <span class="training-bar-stats" id="training-bar-stats">0 / 0 steps</span>
+        <span class="training-bar-stats" id="training-bar-stats">0 matches played</span>
         <button class="training-bar-btn" id="training-bar-watch">Watch Live</button>
     </div>
 
@@ -49,6 +50,13 @@
                         <span class="mode-desc">Train, manage & spectate bots</span>
                     </div>
                 </button>
+                <button id="btn-imitation" class="mode-btn">
+                    <span class="mode-icon">📹</span>
+                    <div>
+                        <span class="mode-label">Record Data</span>
+                        <span class="mode-desc">Imitation learning studio</span>
+                    </div>
+                </button>
             </div>
             
             <div id="connection-status" class="status">Connecting...</div>
@@ -71,6 +79,37 @@
         </div>
     </div>
 
+    <!-- ═══ IMITATION LEARNING SCREEN ═══ -->
+    <div id="imitation-screen" class="screen">
+        <div class="studio-container">
+            <div class="studio-header">
+                <h2 class="studio-title">📹 Imitation Learning Studio</h2>
+                <div class="studio-actions">
+                    <button id="btn-back-menu-imitation" class="btn-icon">← Menu</button>
+                </div>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 1.5rem; border-radius: 12px; margin-top: 1rem;">
+                <h3 style="color: white; margin-bottom: 1rem;">Record Human Gameplay</h3>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">
+                    Play against rule-based bots. Every observation and action will be recorded to <br><code>datasets/imitation_data_&lt;timestamp&gt;.npz</code> for later use in Behavior Cloning.
+                </p>
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" for="il-bot-select">Select Opponent</label>
+                    <select id="il-bot-select" class="form-select">
+                        <option value="level1">Level 1 Bot (Lazy / Walk to center)</option>
+                        <option value="level2">Level 2 Bot (Strafe & Shoot nearby)</option>
+                        <option value="level3">Level 3 Bot (Aiming & Evasive)</option>
+                        <option value="level4">Level 4 Bot (Aggressive Sniper)</option>
+                    </select>
+                </div>
+                
+                <button id="btn-play-record" class="btn-form submit" style="width: 100%;">▶ Play & Record</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ REGISTER BOT SCREEN ═══ -->
     <div id="register-screen" class="screen">
         <div class="register-container">
@@ -79,6 +118,21 @@
             <div class="form-group">
                 <label class="form-label" for="reg-name">Bot Name</label>
                 <input id="reg-name" class="form-input" type="text" placeholder="e.g. sniper_alpha" maxlength="32" autocomplete="off">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label class="form-label" for="reg-level">Initialization Mode</label>
+                <select id="reg-level" class="form-select">
+                    <option value="0" selected>Initialize from Imitation Model (Start with pre-trained weights)</option>
+                    <option value="1">Direct RL (Start from scratch with random weights)</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="base-model-group" style="margin-bottom: 1rem;">
+                <label class="form-label" for="reg-base-model">Imitation Base Model</label>
+                <select id="reg-base-model" class="form-select">
+                    <!-- Populated via JS -->
+                </select>
             </div>
 
             <div class="form-row">
@@ -106,14 +160,13 @@
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label" for="reg-lr">Learning Rate</label>
-                    <select id="reg-lr" class="form-select">
-                        <option value="0.0001">1e-4 (Conservative)</option>
-                        <option value="0.0003" selected>3e-4 (Standard)</option>
-                        <option value="0.001">1e-3 (Aggressive)</option>
-                    </select>
+                    <input type="text" id="reg-lr" class="form-input" placeholder="e.g. 3e-4 or 0.0003" value="3e-4" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f8fafc; padding: 0.75rem; border-radius: 6px; font-size: 0.95rem; width: 100%; box-sizing: border-box;">
+                    <label style="color: #cbd5e1; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
+                        <input type="checkbox" id="reg-lr-scheduler" style="width: 1.1rem; height: 1.1rem; accent-color: #3b82f6; cursor: pointer;"> Enable LR Scheduler
+                    </label>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="reg-steps">Total Steps</label>
+                    <label class="form-label" for="reg-steps">Total Steps Budget</label>
                     <select id="reg-steps" class="form-select">
                         <option value="500000">500K (Quick Test)</option>
                         <option value="1000000">1M (Light)</option>
@@ -121,6 +174,31 @@
                         <option value="10000000" selected>10M (Full)</option>
                         <option value="50000000">50M (Superhuman)</option>
                     </select>
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 1rem;">
+                <div class="form-group">
+                    <label class="form-label" for="reg-clip-range">Clip Range (ε)</label>
+                    <input type="text" id="reg-clip-range" class="form-input" value="0.2" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f8fafc; padding: 0.75rem; border-radius: 6px; box-sizing: border-box; width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reg-ent-coef">Entropy Coef</label>
+                    <input type="text" id="reg-ent-coef" class="form-input" value="0.00" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f8fafc; padding: 0.75rem; border-radius: 6px; box-sizing: border-box; width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="reg-gamma">Gamma (γ)</label>
+                    <input type="text" id="reg-gamma" class="form-input" value="0.99" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f8fafc; padding: 0.75rem; border-radius: 6px; box-sizing: border-box; width: 100%;">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="reg-target-kl">Target KL (Early Stop)</label>
+                    <input type="text" id="reg-target-kl" class="form-input" placeholder="e.g. 0.05 (optional)" value="" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f8fafc; padding: 0.75rem; border-radius: 6px; box-sizing: border-box; width: 100%;">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 0.5rem;">
+                    <div style="font-size: 0.8rem; color: #94a3b8;">Other PPO params (vf_coef=0.5, gae_lambda=0.95, max_grad_norm=0.5) are set to standard defaults.</div>
                 </div>
             </div>
 
@@ -165,21 +243,76 @@
         <div class="result-container">
             <h2 id="result-title" class="result-title">VICTORY</h2>
             <p id="result-sub" class="result-sub">Enemy eliminated</p>
+            
+            <!-- Imitation Save Box (shown only when recorded) -->
+            <div id="result-save-box" style="display:none; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.2rem; margin: 1rem 0; width: 100%;">
+                <div style="font-weight: 700; color: #f8fafc; margin-bottom: 0.4rem; font-size: 0.95rem;">📹 Imitation Learning Recording</div>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">
+                    Match captured (<span id="result-record-steps">0</span> steps). Would you like to save this gameplay to train the imitation bot?
+                </p>
+                <div style="display: flex; gap: 0.6rem;">
+                    <button id="btn-save-recording" class="btn-form submit" style="flex: 1; background: #22c55e; padding: 0.6rem; font-weight: 700;">💾 Save Match</button>
+                    <button id="btn-discard-recording" class="btn-form cancel" style="flex: 1; padding: 0.6rem;">🗑️ Discard</button>
+                </div>
+                <div id="result-save-status" style="margin-top: 0.6rem; font-size: 0.85rem; font-weight: 600; text-align: center; display: none;"></div>
+            </div>
+
             <button id="btn-play-again" class="mode-btn">
                 <span class="mode-label">Play Again</span>
             </button>
             <button id="btn-back-studio" class="mode-btn" style="margin-top:0.75rem; justify-content:center;">
-                <span class="mode-label">← Back to Studio</span>
+                <span class="mode-label">← Back to Menu</span>
             </button>
         </div>
     </div>
 
+    <!-- ═══ OPPONENT SELECT MODAL ═══ -->
+    <div id="opponent-select-modal" class="screen" style="background: rgba(15,23,42,0.9); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: #1e293b; padding: 2rem; border-radius: 12px; width: 400px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="color: white; margin: 0;">Test Bot Options</h2>
+                <button onclick="document.getElementById('opponent-select-modal').style.display='none'" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.5rem;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: #cbd5e1; font-size: 0.85rem; display: block; margin-bottom: 0.5rem; font-weight: 600;">Select Bot Snapshot</label>
+                <select id="test-snapshot-select" class="form-select" style="width: 100%;">
+                    <option value="model.onnx">model.onnx (Latest)</option>
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 0.5rem; color: #94a3b8; font-size: 0.85rem; text-align: center;">Select Opponent to start match:</div>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <button class="btn-form submit" onclick="ModelStudio.launchTest('lazy')" style="background: #334155; border: 1px solid rgba(255,255,255,0.1);">Lvl 1 - Lazy Dummy</button>
+                <button class="btn-form submit" onclick="ModelStudio.launchTest('sniper')" style="background: #334155; border: 1px solid rgba(255,255,255,0.1);">Lvl 2 - Sniper Dummy</button>
+                <button class="btn-form submit" onclick="ModelStudio.launchTest('evasive')" style="background: #334155; border: 1px solid rgba(255,255,255,0.1);">Lvl 3 - Evasive Dummy</button>
+                <button class="btn-form submit" onclick="ModelStudio.launchTest('rule')" style="background: #334155; border: 1px solid rgba(255,255,255,0.1);">Lvl 4 - Active Dummy</button>
+                <button class="btn-form submit" onclick="ModelStudio.launchTest('aggressive')" style="background: #334155; border: 1px solid rgba(255,255,255,0.1);">Lvl 5 - Aggressive Dummy</button>
+            </div>
+            
+            <button class="btn-form" onclick="document.getElementById('opponent-select-modal').classList.remove('active')" style="margin-top: 1.5rem; width: 100%; background: transparent; border: 1px solid #475569;">Cancel</button>
+        </div>
+    </div>
+
+    <!-- ═══ GRAPH MODAL ═══ -->
+    <div id="graph-modal" class="screen" style="background: rgba(15,23,42,0.95); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: #1e293b; padding: 2rem; border-radius: 12px; width: 95vw; height: 90vh; max-width: 1400px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
+                <h2 style="color: white; margin: 0;" id="graph-modal-title">Training Progress</h2>
+                <button class="btn-icon" onclick="document.getElementById('graph-modal').classList.remove('active')" style="color: #94a3b8; font-size: 1.5rem; background: none; border: none; cursor: pointer;">×</button>
+            </div>
+            <div id="charts-container" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; padding-right: 0.5rem; align-items: start;">
+                <!-- Charts injected by JS -->
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts (loaded in order) -->
-    <script src="/js/controls.js?v=5"></script>
-    <script src="/js/renderer.js?v=5"></script>
-    <script src="/js/websocket.js?v=5"></script>
-    <script src="/js/model_studio.js?v=5"></script>
-    <script src="/js/training_hud.js?v=5"></script>
-    <script src="/js/app.js?v=5"></script>
+    <script src="/js/controls.js?v=17"></script>
+    <script src="/js/renderer.js?v=17"></script>
+    <script src="/js/websocket.js?v=17"></script>
+    <script src="/js/model_studio.js?v=17"></script>
+    <script src="/js/training_hud.js?v=17"></script>
+    <script src="/js/app.js?v=17"></script>
 </body>
 </html>
