@@ -107,7 +107,7 @@ def load_recorded_demonstrations(datasets_dir: str = "datasets", frame_stack: in
 
 # ─── 2. Evaluation ────────────────────────────────────────────────────────────
 
-def evaluate_policy_against_bot(policy, opponent_bot, num_matches=25, max_ticks=800, device="cpu"):
+def evaluate_policy_against_bot(policy, opponent_bot, num_matches=25, max_ticks=3600, device="cpu"):
     policy.eval()
     wins = 0
     total_damage_dealt = 0.0

@@ -56,7 +56,7 @@ class BrawlEnv:
     PENALTY_DEFEAT         = -10.0 # Dying in battle
     PENALTY_TIMEOUT        = -30.0 # Match timeout (was -10.0)
 
-    def __init__(self, bot_name: str = None, max_steps: int = 800, frame_stack: int = 3):
+    def __init__(self, bot_name: str = None, max_steps: int = 3600, frame_stack: int = 3):
         self.max_steps = max_steps
         self.frame_stack = frame_stack
         self.bot_name = bot_name
@@ -125,7 +125,12 @@ class BrawlEnv:
 
         # Generate enemy action
         stacked_p2 = np.concatenate(list(self.p2_obs_stack)).astype(np.float32)
-        enemy_action = self.pool.predict_opponent(self.active_opponent, stacked_p2)
+        
+        # Append time_remaining so self-play ONNX opponents have correct input
+        time_remaining = 1.0 - (self.state.tick_count / self.max_steps)
+        stacked_p2_91 = np.append(stacked_p2, np.float32(time_remaining))
+        
+        enemy_action = self.pool.predict_opponent(self.active_opponent, stacked_p2_91)
         enemy_action[0:4] = -enemy_action[0:4]  # Rotate P2 action to world space
 
         # Tick physics
@@ -174,7 +179,7 @@ class BrawlEnv:
     def _compute_reward(self, action: np.ndarray, obs: np.ndarray) -> float:
         """
         Combat ledger v2:
-        - Escalating time urgency (accelerates after tick 400)
+        - Escalating time urgency (accelerates after tick 1800)
         - Damage dealt / taken
         - Near-miss trajectory reward
         - Finisher momentum bonus (consecutive hits within 120 ticks)

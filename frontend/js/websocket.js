@@ -70,7 +70,7 @@ const GameSocket = {
 
                 // Check for game over
                 if (data.go !== undefined) {
-                    onGameOver(data.go);
+                    onGameOver(data.go, data.score);
                     return;
                 }
 

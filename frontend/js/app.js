@@ -25,7 +25,18 @@ const App = {
             this.startGame('rule_bot');
         });
         document.getElementById('btn-rl-bot').addEventListener('click', () => {
-            this.startGame('rl_bot');
+            this.openRLAgentModal();
+        });
+
+        // ─── RL Agent Modal buttons ───────────────────────────────────
+        document.getElementById('btn-start-rl-game').addEventListener('click', () => {
+            const botName = document.getElementById('rl-agent-bot-select').value;
+            const snapshot = document.getElementById('rl-agent-snapshot-select').value;
+            if (botName) {
+                document.getElementById('rl-agent-select-modal').classList.remove('active');
+                // Play against the selected RL agent
+                this.startGameWithBot(botName, 'rl_bot', null, snapshot);
+            }
         });
         document.getElementById('btn-studio').addEventListener('click', () => {
             this.showScreen('studio');
@@ -138,6 +149,29 @@ const App = {
         this.currentScreen = name;
     },
 
+    async openRLAgentModal() {
+        const modal = document.getElementById('rl-agent-select-modal');
+        const botSelect = document.getElementById('rl-agent-bot-select');
+        
+        botSelect.innerHTML = '<option>Loading...</option>';
+        modal.classList.add('active');
+
+        try {
+            const res = await fetch('/api/bots');
+            const data = await res.json();
+            const trainedBots = (data.bots || []).filter(b => b.has_onnx);
+            
+            if (trainedBots.length === 0) {
+                botSelect.innerHTML = '<option value="">No trained bots found</option>';
+                return;
+            }
+
+            botSelect.innerHTML = trainedBots.map(b => `<option value="${b.bot_name}">${b.bot_name}</option>`).join('');
+        } catch (e) {
+            botSelect.innerHTML = '<option value="">Error loading bots</option>';
+        }
+    },
+
     /**
      * Start a game with the default model path (legacy mode).
      */
@@ -202,6 +236,9 @@ const App = {
         this.showScreen('game');
         this.currentState = null;
         this._gameStartTick = 0;
+        
+        // Reset HUD explicitly so it doesn't show previous game HP if connection fails
+        this._updateHUD({ p: [0, 0, 100], e: [0, 0, 100], t: 0, bs: [] });
 
         // Connect WebSocket
         GameSocket.connect(
@@ -220,12 +257,12 @@ const App = {
                 this._updateHUD(state);
             },
             // onGameOver
-            (winner) => {
-                console.log(`[App] Game over: Winner ${winner}`);
+            (winner, score) => {
+                console.log(`[App] Game over: Winner ${winner}, Score ${score}`);
                 setTimeout(() => {
                     this._stopRenderLoop();
                     GameSocket.disconnect();
-                    this._showResult(winner);
+                    this._showResult(winner, score);
                 }, 300);
             },
             // onDisconnect
@@ -288,9 +325,11 @@ const App = {
         }
     },
 
-    _showResult(winner) {
+    _showResult(winner, score) {
+        this.showScreen('result');
         const title = document.getElementById('result-title');
         const sub = document.getElementById('result-sub');
+        const scoreEl = document.getElementById('result-score');
 
         if (this.isSpectating) {
             title.textContent = winner === 1 ? 'BLUE WINS' : 'RED WINS';
@@ -300,10 +339,22 @@ const App = {
             title.textContent = 'VICTORY';
             title.className = 'result-title victory';
             sub.textContent = 'Enemy eliminated!';
+        } else if (winner === 0) {
+            title.textContent = 'TIMEOUT';
+            title.className = 'result-title';
+            title.style.color = '#eab308';
+            sub.textContent = 'Time limit reached.';
         } else {
             title.textContent = 'DEFEAT';
             title.className = 'result-title defeat';
             sub.textContent = 'You were eliminated.';
+        }
+        
+        if (score !== undefined && !this.isSpectating) {
+            scoreEl.textContent = `Score: ${score.toFixed(2)}`;
+            scoreEl.style.display = 'block';
+        } else {
+            scoreEl.style.display = 'none';
         }
 
         const saveBox = document.getElementById('result-save-box');

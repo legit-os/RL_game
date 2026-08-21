@@ -54,6 +54,7 @@ class ONNXBot:
         
         # Rolling buffer for Frame Stacking
         self.obs_stack = deque(maxlen=3)
+        self.tick_count = 0
 
     def predict(self, obs: np.ndarray) -> np.ndarray:
         """
@@ -66,6 +67,7 @@ class ONNXBot:
             5-float action array [move_x, move_y, aim_x, aim_y, shoot_trigger]
         """
         obs_flat = obs.flatten()
+        self.tick_count += 1
         
         # Initialize stack if empty
         if not self.obs_stack:
@@ -74,7 +76,11 @@ class ONNXBot:
         else:
             self.obs_stack.append(obs_flat)
             
-        if self.expected_features == 90:
+        if self.expected_features == 91:
+            stacked = np.concatenate(self.obs_stack).astype(np.float32)
+            time_remaining = max(0.0, 1.0 - (self.tick_count / 3600.0))
+            stacked_obs = np.append(stacked, np.float32(time_remaining))
+        elif self.expected_features == 90:
             stacked_obs = np.concatenate(self.obs_stack).astype(np.float32)
         else:
             # Fallback for old 30-float models
@@ -95,6 +101,7 @@ class ONNXBot:
     def reset(self):
         """Reset internal frame stack on new episode."""
         self.obs_stack.clear()
+        self.tick_count = 0
 
 
 class FallbackBot:

@@ -243,6 +243,7 @@
         <div class="result-container">
             <h2 id="result-title" class="result-title">VICTORY</h2>
             <p id="result-sub" class="result-sub">Enemy eliminated</p>
+            <p id="result-score" style="font-size: 1.25rem; font-weight: bold; color: #38bdf8; margin-top: 0.5rem; margin-bottom: 1rem; display: none;"></p>
             
             <!-- Imitation Save Box (shown only when recorded) -->
             <div id="result-save-box" style="display:none; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.2rem; margin: 1rem 0; width: 100%;">
@@ -294,6 +295,33 @@
         </div>
     </div>
 
+    <!-- ═══ RL AGENT SELECT MODAL ═══ -->
+    <div id="rl-agent-select-modal" class="screen" style="background: rgba(15,23,42,0.9); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: #1e293b; padding: 2rem; border-radius: 12px; width: 400px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="color: white; margin: 0;">Select RL Agent</h2>
+                <button onclick="document.getElementById('rl-agent-select-modal').classList.remove('active')" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.5rem;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: #cbd5e1; font-size: 0.85rem; display: block; margin-bottom: 0.5rem; font-weight: 600;">Available Trained Bots</label>
+                <select id="rl-agent-bot-select" class="form-select" style="width: 100%;">
+                    <!-- Populated via JS -->
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <label style="color: #cbd5e1; font-size: 0.85rem; display: block; margin-bottom: 0.5rem; font-weight: 600;">Select Snapshot</label>
+                <select id="rl-agent-snapshot-select" class="form-select" style="width: 100%;">
+                    <option value="model.onnx">model.onnx (Latest)</option>
+                </select>
+            </div>
+            
+            <button id="btn-start-rl-game" class="btn-form submit" style="width: 100%;">Start Game</button>
+            <button class="btn-form" onclick="document.getElementById('rl-agent-select-modal').classList.remove('active')" style="margin-top: 1rem; width: 100%; background: transparent; border: 1px solid #475569;">Cancel</button>
+        </div>
+    </div>
+
     <!-- ═══ GRAPH MODAL ═══ -->
     <div id="graph-modal" class="screen" style="background: rgba(15,23,42,0.95); z-index: 1000; align-items: center; justify-content: center;">
         <div style="background: #1e293b; padding: 2rem; border-radius: 12px; width: 95vw; height: 90vh; max-width: 1400px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.1);">
@@ -308,11 +336,11 @@
     </div>
 
     <!-- Scripts (loaded in order) -->
-    <script src="/js/controls.js?v=17"></script>
-    <script src="/js/renderer.js?v=17"></script>
-    <script src="/js/websocket.js?v=17"></script>
-    <script src="/js/model_studio.js?v=17"></script>
-    <script src="/js/training_hud.js?v=17"></script>
-    <script src="/js/app.js?v=17"></script>
+    <script src="/js/controls.js?v=20"></script>
+    <script src="/js/renderer.js?v=20"></script>
+    <script src="/js/websocket.js?v=20"></script>
+    <script src="/js/model_studio.js?v=20"></script>
+    <script src="/js/training_hud.js?v=20"></script>
+    <script src="/js/app.js?v=20"></script>
 </body>
 </html>

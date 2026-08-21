@@ -107,7 +107,8 @@ class OpponentPool:
         if not isinstance(opponent, ort.InferenceSession):
             # Rule bot — only needs latest 30 features
             if obs.shape[0] >= 90:
-                obs_to_pass = obs[-30:]  # Last frame from the stack (always 30)
+                # The latest 30 features are at index 60:90. (Index 90 is time_remaining if length is 91)
+                obs_to_pass = obs[60:90]
             else:
                 obs_to_pass = obs
             act = opponent.predict(obs_to_pass).copy()

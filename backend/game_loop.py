@@ -52,6 +52,8 @@ class GameSession:
         self.is_running = False
         self.is_spectating = mode.startswith("spectate")
         self.record = record
+        self.p1_score = 0.0
+        self._last_hit_tick = 0
 
         # Human input (updated by WebSocket handler in play modes)
         self._human_action = np.zeros(5, dtype=np.float32)
@@ -86,7 +88,7 @@ class GameSession:
         if bot_type == "rl" and model_path:
             try:
                 return ONNXBot(model_path)
-            except (RuntimeError, FileNotFoundError) as e:
+            except Exception as e:
                 print(f"[WARN] ONNX model unavailable ({e}), falling back to Level4Bot")
                 return Level4Bot()
                 
@@ -159,6 +161,35 @@ class GameSession:
 
                 # --- Tick physics ---
                 tick(self.state, action1=action1, action2=action2)
+                
+                # --- Compute score for P1 (Human) ---
+                if not self.is_spectating:
+                    tc = self.state.tick_count
+                    # 1. Escalating Urgency
+                    if tc > 1800:
+                        progress = (tc - 1800) / 1800.0
+                        self.p1_score += -0.005 * (1.0 + progress)
+                    else:
+                        self.p1_score += -0.001
+                    
+                    # 2. Shots Fired
+                    if self.state.p1_shots_fired > 0:
+                        self.p1_score += self.state.p1_shots_fired * 0.05
+                    
+                    # 3. Damage Dealt
+                    if self.state.p1_damage_dealt > 0:
+                        self.p1_score += (self.state.p1_damage_dealt / 34.0) * 6.0
+                        if self._last_hit_tick > 0 and (tc - self._last_hit_tick) < 120:
+                            self.p1_score += 3.0
+                        self._last_hit_tick = tc
+                        
+                    # 4. Damage Taken
+                    if self.state.p1_damage_taken > 0:
+                        self.p1_score += (self.state.p1_damage_taken / 34.0) * -4.0
+                        
+                    # 5. Near Miss
+                    if self.state.p1_near_miss_score > 0:
+                        self.p1_score += self.state.p1_near_miss_score * (1.5 / 5.0)
 
                 # --- Send state to client ---
                 state_dict = state_to_dict(self.state)
@@ -170,7 +201,8 @@ class GameSession:
                     break
 
                 # --- Check game over ---
-                if self.state.p1_dead or self.state.p2_dead:
+                timeout = self.state.tick_count >= 3600
+                if self.state.p1_dead or self.state.p2_dead or timeout:
                     if self.is_spectating:
                         # Brief pause to show the death, then reset
                         await asyncio.sleep(1.0)
@@ -182,8 +214,22 @@ class GameSession:
                         next_tick_time = time.perf_counter() + TICK_DURATION
                         continue
                     else:
-                        # Send final state with game over flag
-                        state_dict["go"] = 1 if self.state.p2_dead else 2
+                        # Apply win/loss/timeout final reward
+                        if self.state.p2_dead and not self.state.p1_dead:
+                            self.p1_score += 25.0
+                            winner = 1
+                        elif self.state.p1_dead and not self.state.p2_dead:
+                            self.p1_score -= 10.0
+                            winner = 2
+                        elif timeout:
+                            self.p1_score -= 30.0
+                            winner = 0
+                        else:
+                            winner = 3 # Draw (both died)
+
+                        # Send final state with game over flag and score
+                        state_dict["go"] = winner
+                        state_dict["score"] = round(self.p1_score, 2)
                         try:
                             await send_callback(state_dict)
                         except Exception:
